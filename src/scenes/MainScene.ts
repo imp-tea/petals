@@ -5,21 +5,30 @@ import AdvicePanel, { type OfferResult } from "../ui/AdvicePanel";
 import type { Need, Plant } from "../state/GameState";
 import { GameState } from "../state/GameState";
 import { PlantManager } from "../systems/PlantManager";
+import { TILE_SIZE } from "../world/constants";
+import WorldObject from "../world/objects/WorldObject";
 
 import floorTile from "../sprites/tiles/floor.png";
 import tableTexture from "../sprites/structures/table.png";
 
 import playerWalkDown from "../sprites/actors/player/walk_down.png";
-import playerWalkUp from "../sprites/actors/player/walk_up.png";
+import playerWalkDownLeft from "../sprites/actors/player/walk_down_left.png";
+import playerWalkDownRight from "../sprites/actors/player/walk_down_right.png";
 import playerWalkLeft from "../sprites/actors/player/walk_left.png";
 import playerWalkRight from "../sprites/actors/player/walk_right.png";
+import playerWalkUp from "../sprites/actors/player/walk_up.png";
+import playerWalkUpLeft from "../sprites/actors/player/walk_up_left.png";
+import playerWalkUpRight from "../sprites/actors/player/walk_up_right.png";
 
 import customerWalkDown from "../sprites/actors/customer/walk_down.png";
-import customerWalkUp from "../sprites/actors/customer/walk_up.png";
+import customerWalkDownLeft from "../sprites/actors/customer/walk_down_left.png";
+import customerWalkDownRight from "../sprites/actors/customer/walk_down_right.png";
 import customerWalkLeft from "../sprites/actors/customer/walk_left.png";
 import customerWalkRight from "../sprites/actors/customer/walk_right.png";
+import customerWalkUp from "../sprites/actors/customer/walk_up.png";
+import customerWalkUpLeft from "../sprites/actors/customer/walk_up_left.png";
+import customerWalkUpRight from "../sprites/actors/customer/walk_up_right.png";
 
-const TILE = 64;
 const INTERACT_DISTANCE = 72;
 
 const CUSTOMER_NEED: Need = {
@@ -37,7 +46,8 @@ export default class MainScene extends Phaser.Scene {
   private player!: Player;
   private customer!: Customer;
   private walls!: Phaser.Physics.Arcade.StaticGroup;
-  private table!: Phaser.Physics.Arcade.Image;
+  private table!: WorldObject;
+  private worldObjects: WorldObject[] = [];
   private interactKey!: Phaser.Input.Keyboard.Key;
   private interactPrompt?: Phaser.GameObjects.Text;
   private cashText!: Phaser.GameObjects.Text;
@@ -54,15 +64,27 @@ export default class MainScene extends Phaser.Scene {
     this.load.image("floor-tile", floorTile);
     this.load.image("table", tableTexture);
 
-    this.load.spritesheet("player-walk-down", playerWalkDown, { frameWidth: 64, frameHeight: 64 });
-    this.load.spritesheet("player-walk-up", playerWalkUp, { frameWidth: 64, frameHeight: 64 });
-    this.load.spritesheet("player-walk-left", playerWalkLeft, { frameWidth: 64, frameHeight: 64 });
-    this.load.spritesheet("player-walk-right", playerWalkRight, { frameWidth: 64, frameHeight: 64 });
+    this.loadDirectionalSheets("player", {
+      down: playerWalkDown,
+      down_left: playerWalkDownLeft,
+      down_right: playerWalkDownRight,
+      left: playerWalkLeft,
+      right: playerWalkRight,
+      up: playerWalkUp,
+      up_left: playerWalkUpLeft,
+      up_right: playerWalkUpRight
+    });
 
-    this.load.spritesheet("customer-walk-down", customerWalkDown, { frameWidth: 64, frameHeight: 64 });
-    this.load.spritesheet("customer-walk-up", customerWalkUp, { frameWidth: 64, frameHeight: 64 });
-    this.load.spritesheet("customer-walk-left", customerWalkLeft, { frameWidth: 64, frameHeight: 64 });
-    this.load.spritesheet("customer-walk-right", customerWalkRight, { frameWidth: 64, frameHeight: 64 });
+    this.loadDirectionalSheets("customer", {
+      down: customerWalkDown,
+      down_left: customerWalkDownLeft,
+      down_right: customerWalkDownRight,
+      left: customerWalkLeft,
+      right: customerWalkRight,
+      up: customerWalkUp,
+      up_left: customerWalkUpLeft,
+      up_right: customerWalkUpRight
+    });
   }
 
   create() {
@@ -95,11 +117,20 @@ export default class MainScene extends Phaser.Scene {
     }
   }
 
+  private loadDirectionalSheets(prefix: string, sources: Record<string, string>) {
+    (Object.entries(sources) as Array<[string, string]>).forEach(([direction, src]) => {
+      this.load.spritesheet(`${prefix}-walk-${direction.replace("_", "-")}`, src, {
+        frameWidth: TILE_SIZE,
+        frameHeight: TILE_SIZE
+      });
+    });
+  }
+
   private createTextures() {
     this.createTexture("tile-wall", 0x1f2937);
   }
 
-  private createTexture(key: string, color: number, size = TILE) {
+  private createTexture(key: string, color: number, size = TILE_SIZE) {
     if (this.textures.exists(key)) {
       return;
     }
@@ -118,18 +149,30 @@ export default class MainScene extends Phaser.Scene {
 
     this.walls = this.physics.add.staticGroup();
 
-    for (let x = TILE / 2; x < width; x += TILE) {
-      this.walls.create(x, TILE / 2, "tile-wall");
-      this.walls.create(x, height - TILE / 2, "tile-wall");
+    for (let x = TILE_SIZE / 2; x < width; x += TILE_SIZE) {
+      this.walls.create(x, TILE_SIZE / 2, "tile-wall");
+      this.walls.create(x, height - TILE_SIZE / 2, "tile-wall");
     }
 
-    for (let y = TILE + TILE / 2; y < height - TILE; y += TILE) {
-      this.walls.create(TILE / 2, y, "tile-wall");
-      this.walls.create(width - TILE / 2, y, "tile-wall");
+    for (let y = TILE_SIZE + TILE_SIZE / 2; y < height - TILE_SIZE; y += TILE_SIZE) {
+      this.walls.create(TILE_SIZE / 2, y, "tile-wall");
+      this.walls.create(width - TILE_SIZE / 2, y, "tile-wall");
     }
 
-    this.table = this.physics.add.staticImage(width / 2, height / 2 - TILE * 0.5, "table");
-    this.table.setDepth(2);
+    this.table = new WorldObject(this, {
+      texture: "table",
+      tilePosition: { x: 3.5, y: 2.5 },
+      tileSize: { width: 3, height: 2 },
+      depth: 2,
+      body: {
+        static: true,
+        immovable: true,
+        size: { width: 160, height: 90 },
+        offset: { x: 16, y: 38 }
+      }
+    });
+
+    this.worldObjects.push(this.table);
   }
 
   private createActors() {
@@ -139,13 +182,13 @@ export default class MainScene extends Phaser.Scene {
     Player.registerAnimations(this);
     Customer.registerAnimations(this);
 
-    this.player = new Player(this, width / 2 - TILE, height / 2 + TILE * 0.75);
+    this.player = new Player(this, width / 2 - TILE_SIZE, height / 2 + TILE_SIZE * 0.75);
     this.customer = new Customer(
       this,
-      width / 2 + TILE * 0.75,
+      width / 2 + TILE_SIZE * 0.75,
       height / 2,
       CUSTOMER_NEED,
-      new Phaser.Geom.Rectangle(TILE * 2, TILE * 2, width - TILE * 4, height - TILE * 4)
+      new Phaser.Geom.Rectangle(TILE_SIZE * 2, TILE_SIZE * 2, width - TILE_SIZE * 4, height - TILE_SIZE * 4)
     );
 
     this.physics.add.collider(this.player, this.walls);

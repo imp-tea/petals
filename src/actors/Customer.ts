@@ -1,14 +1,18 @@
 import Phaser from "phaser";
 import type { Need } from "../state/GameState";
-
-type Direction = "down" | "up" | "left" | "right";
+import { DIRECTIONS_8, type Direction8, vectorToDirection8 } from "./direction";
 
 const SPEED = 60;
-const ANIM_KEYS: Record<Direction, string> = {
+
+const ANIM_KEYS: Record<Direction8, string> = {
+  right: "customer-walk-right",
+  down_right: "customer-walk-down-right",
   down: "customer-walk-down",
-  up: "customer-walk-up",
+  down_left: "customer-walk-down-left",
   left: "customer-walk-left",
-  right: "customer-walk-right"
+  up_left: "customer-walk-up-left",
+  up: "customer-walk-up",
+  up_right: "customer-walk-up-right"
 };
 
 export default class Customer extends Phaser.Physics.Arcade.Sprite {
@@ -16,14 +20,14 @@ export default class Customer extends Phaser.Physics.Arcade.Sprite {
   private readonly roamArea: Phaser.Geom.Rectangle;
   private target: Phaser.Math.Vector2 | null = null;
   private repathTime = 0;
-  private lastDirection: Direction = "down";
+  private lastDirection: Direction8 = "down";
 
   static registerAnimations(scene: Phaser.Scene) {
     if (scene.anims.exists(ANIM_KEYS.down)) {
       return;
     }
 
-    (Object.keys(ANIM_KEYS) as Direction[]).forEach(direction => {
+    DIRECTIONS_8.forEach(direction => {
       scene.anims.create({
         key: ANIM_KEYS[direction],
         frames: scene.anims.generateFrameNumbers(ANIM_KEYS[direction], { start: 0, end: 3 }),
@@ -90,12 +94,7 @@ export default class Customer extends Phaser.Physics.Arcade.Sprite {
       return;
     }
 
-    if (Math.abs(x) > Math.abs(y)) {
-      this.lastDirection = x > 0 ? "right" : "left";
-    } else {
-      this.lastDirection = y > 0 ? "down" : "up";
-    }
-
+    this.lastDirection = vectorToDirection8(x, y, this.lastDirection);
     this.anims.play(ANIM_KEYS[this.lastDirection], true);
   }
 }

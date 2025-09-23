@@ -1,35 +1,37 @@
 import Phaser from "phaser";
-
-type Direction = "down" | "up" | "left" | "right";
+import { DIRECTIONS_8, type Direction8, vectorToDirection8 } from "./direction";
 
 const SPEED = 160;
-const ANIM_KEYS: Record<Direction, string> = {
+
+const ANIM_KEYS: Record<Direction8, string> = {
+  right: "player-walk-right",
+  down_right: "player-walk-down-right",
   down: "player-walk-down",
-  up: "player-walk-up",
+  down_left: "player-walk-down-left",
   left: "player-walk-left",
-  right: "player-walk-right"
+  up_left: "player-walk-up-left",
+  up: "player-walk-up",
+  up_right: "player-walk-up-right"
 };
 
 export default class Player extends Phaser.Physics.Arcade.Sprite {
   private readonly cursors: Phaser.Types.Input.Keyboard.CursorKeys;
   private readonly wasd: Record<"w" | "a" | "s" | "d", Phaser.Input.Keyboard.Key>;
-  private lastDirection: Direction = "down";
+  private lastDirection: Direction8 = "down";
 
   static registerAnimations(scene: Phaser.Scene) {
     if (scene.anims.exists(ANIM_KEYS.down)) {
       return;
     }
 
-    const make = (direction: Direction) => {
+    DIRECTIONS_8.forEach(direction => {
       scene.anims.create({
         key: ANIM_KEYS[direction],
         frames: scene.anims.generateFrameNumbers(ANIM_KEYS[direction], { start: 0, end: 3 }),
         frameRate: 8,
         repeat: -1
       });
-    };
-
-    (Object.keys(ANIM_KEYS) as Direction[]).forEach(make);
+    });
   }
 
   constructor(scene: Phaser.Scene, x: number, y: number) {
@@ -81,7 +83,7 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
 
     if (velocity.lengthSq() > 0) {
       velocity.normalize().scale(SPEED);
-      this.updateDirection(velocity.x, velocity.y);
+      this.lastDirection = vectorToDirection8(velocity.x, velocity.y, this.lastDirection);
       this.anims.play(ANIM_KEYS[this.lastDirection], true);
     } else {
       this.anims.stop();
@@ -101,13 +103,5 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
 
   releaseMovement() {
     this.setActive(true);
-  }
-
-  private updateDirection(x: number, y: number) {
-    if (Math.abs(x) > Math.abs(y)) {
-      this.lastDirection = x > 0 ? "right" : "left";
-    } else {
-      this.lastDirection = y > 0 ? "down" : "up";
-    }
   }
 }
