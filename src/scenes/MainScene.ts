@@ -6,7 +6,21 @@ import type { Need, Plant } from "../state/GameState";
 import { GameState } from "../state/GameState";
 import { PlantManager } from "../systems/PlantManager";
 
-const TILE = 32;
+import floorTile from "../sprites/tiles/floor.png";
+import tableTexture from "../sprites/structures/table.png";
+
+import playerWalkDown from "../sprites/actors/player/walk_down.png";
+import playerWalkUp from "../sprites/actors/player/walk_up.png";
+import playerWalkLeft from "../sprites/actors/player/walk_left.png";
+import playerWalkRight from "../sprites/actors/player/walk_right.png";
+
+import customerWalkDown from "../sprites/actors/customer/walk_down.png";
+import customerWalkUp from "../sprites/actors/customer/walk_up.png";
+import customerWalkLeft from "../sprites/actors/customer/walk_left.png";
+import customerWalkRight from "../sprites/actors/customer/walk_right.png";
+
+const TILE = 64;
+const INTERACT_DISTANCE = 72;
 
 const CUSTOMER_NEED: Need = {
   light: 0.6,
@@ -23,6 +37,7 @@ export default class MainScene extends Phaser.Scene {
   private player!: Player;
   private customer!: Customer;
   private walls!: Phaser.Physics.Arcade.StaticGroup;
+  private table!: Phaser.Physics.Arcade.Image;
   private interactKey!: Phaser.Input.Keyboard.Key;
   private interactPrompt?: Phaser.GameObjects.Text;
   private cashText!: Phaser.GameObjects.Text;
@@ -33,6 +48,21 @@ export default class MainScene extends Phaser.Scene {
 
   constructor() {
     super("MainScene");
+  }
+
+  preload() {
+    this.load.image("floor-tile", floorTile);
+    this.load.image("table", tableTexture);
+
+    this.load.spritesheet("player-walk-down", playerWalkDown, { frameWidth: 64, frameHeight: 64 });
+    this.load.spritesheet("player-walk-up", playerWalkUp, { frameWidth: 64, frameHeight: 64 });
+    this.load.spritesheet("player-walk-left", playerWalkLeft, { frameWidth: 64, frameHeight: 64 });
+    this.load.spritesheet("player-walk-right", playerWalkRight, { frameWidth: 64, frameHeight: 64 });
+
+    this.load.spritesheet("customer-walk-down", customerWalkDown, { frameWidth: 64, frameHeight: 64 });
+    this.load.spritesheet("customer-walk-up", customerWalkUp, { frameWidth: 64, frameHeight: 64 });
+    this.load.spritesheet("customer-walk-left", customerWalkLeft, { frameWidth: 64, frameHeight: 64 });
+    this.load.spritesheet("customer-walk-right", customerWalkRight, { frameWidth: 64, frameHeight: 64 });
   }
 
   create() {
@@ -57,7 +87,7 @@ export default class MainScene extends Phaser.Scene {
     this.customer.update(time);
 
     const distance = Phaser.Math.Distance.Between(this.player.x, this.player.y, this.customer.x, this.customer.y);
-    const canInteract = distance < 36;
+    const canInteract = distance < INTERACT_DISTANCE;
     this.interactPrompt?.setVisible(canInteract && !this.advicePanel.isOpen);
 
     if (canInteract && Phaser.Input.Keyboard.JustDown(this.interactKey) && !this.advicePanel.isOpen) {
@@ -66,7 +96,6 @@ export default class MainScene extends Phaser.Scene {
   }
 
   private createTextures() {
-    this.createTexture("tile-floor", 0x162044);
     this.createTexture("tile-wall", 0x1f2937);
   }
 
@@ -85,7 +114,7 @@ export default class MainScene extends Phaser.Scene {
     const width = this.scale.width;
     const height = this.scale.height;
 
-    this.add.tileSprite(width / 2, height / 2, width, height, "tile-floor");
+    this.add.tileSprite(width / 2, height / 2, width, height, "floor-tile").setDepth(0);
 
     this.walls = this.physics.add.staticGroup();
 
@@ -99,20 +128,21 @@ export default class MainScene extends Phaser.Scene {
       this.walls.create(width - TILE / 2, y, "tile-wall");
     }
 
-    const shelfY = height / 2;
-    for (let x = TILE * 3 + TILE / 2; x <= width - TILE * 3; x += TILE) {
-      this.walls.create(x, shelfY, "tile-wall");
-    }
+    this.table = this.physics.add.staticImage(width / 2, height / 2 - TILE * 0.5, "table");
+    this.table.setDepth(2);
   }
 
   private createActors() {
     const width = this.scale.width;
     const height = this.scale.height;
 
-    this.player = new Player(this, width / 2 - 40, height / 2 + 30);
+    Player.registerAnimations(this);
+    Customer.registerAnimations(this);
+
+    this.player = new Player(this, width / 2 - TILE, height / 2 + TILE * 0.75);
     this.customer = new Customer(
       this,
-      width / 2 + 50,
+      width / 2 + TILE * 0.75,
       height / 2,
       CUSTOMER_NEED,
       new Phaser.Geom.Rectangle(TILE * 2, TILE * 2, width - TILE * 4, height - TILE * 4)
@@ -121,23 +151,25 @@ export default class MainScene extends Phaser.Scene {
     this.physics.add.collider(this.player, this.walls);
     this.physics.add.collider(this.customer, this.walls);
     this.physics.add.collider(this.player, this.customer);
+    this.physics.add.collider(this.player, this.table);
+    this.physics.add.collider(this.customer, this.table);
   }
 
   private createHud() {
-    this.cashText = this.add.text(12, 10, "Cash: $0.00", {
+    this.cashText = this.add.text(16, 14, "Cash: $0.00", {
       fontFamily: "Segoe UI, sans-serif",
       fontSize: "12px",
       color: "#f8fafc"
     }).setOrigin(0, 0);
 
-    this.logText = this.add.text(12, 26, "", {
+    this.logText = this.add.text(16, 32, "", {
       fontFamily: "Consolas, monospace",
       fontSize: "10px",
       color: "#94a3b8",
       lineSpacing: 4
     }).setOrigin(0, 0);
 
-    this.interactPrompt = this.add.text(this.scale.width / 2, this.scale.height - 24, "Press E to help", {
+    this.interactPrompt = this.add.text(this.scale.width / 2, this.scale.height - 28, "Press E to help", {
       fontFamily: "Segoe UI, sans-serif",
       fontSize: "11px",
       color: "#facc15",

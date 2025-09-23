@@ -3,8 +3,8 @@ import MainScene from "./scenes/MainScene";
 
 const config: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
-  width: 320,
-  height: 256,
+  width: 640,
+  height: 512,
   parent: "app",
   backgroundColor: "#0b1320",
   physics: {
@@ -15,7 +15,7 @@ const config: Phaser.Types.Core.GameConfig = {
     }
   },
   scale: {
-    mode: Phaser.Scale.FIT,
+    mode: Phaser.Scale.NONE,
     autoCenter: Phaser.Scale.CENTER_BOTH,
     zoom: window.devicePixelRatio || 1
   },

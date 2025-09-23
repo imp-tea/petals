@@ -1,30 +1,48 @@
 import Phaser from "phaser";
 
-function ensureTexture(scene: Phaser.Scene, key: string, color: number) {
-  if (scene.textures.exists(key)) {
-    return;
-  }
-  const gfx = scene.add.graphics();
-  gfx.fillStyle(color, 1);
-  gfx.fillRect(0, 0, 16, 16);
-  gfx.generateTexture(key, 16, 16);
-  gfx.destroy();
-}
+type Direction = "down" | "up" | "left" | "right";
+
+const SPEED = 160;
+const ANIM_KEYS: Record<Direction, string> = {
+  down: "player-walk-down",
+  up: "player-walk-up",
+  left: "player-walk-left",
+  right: "player-walk-right"
+};
 
 export default class Player extends Phaser.Physics.Arcade.Sprite {
   private readonly cursors: Phaser.Types.Input.Keyboard.CursorKeys;
   private readonly wasd: Record<"w" | "a" | "s" | "d", Phaser.Input.Keyboard.Key>;
-  private readonly speed = 110;
+  private lastDirection: Direction = "down";
+
+  static registerAnimations(scene: Phaser.Scene) {
+    if (scene.anims.exists(ANIM_KEYS.down)) {
+      return;
+    }
+
+    const make = (direction: Direction) => {
+      scene.anims.create({
+        key: ANIM_KEYS[direction],
+        frames: scene.anims.generateFrameNumbers(ANIM_KEYS[direction], { start: 0, end: 3 }),
+        frameRate: 8,
+        repeat: -1
+      });
+    };
+
+    (Object.keys(ANIM_KEYS) as Direction[]).forEach(make);
+  }
 
   constructor(scene: Phaser.Scene, x: number, y: number) {
-    ensureTexture(scene, "player", 0x4caf50);
-    super(scene, x, y, "player");
+    super(scene, x, y, ANIM_KEYS.down, 0);
     scene.add.existing(this);
     scene.physics.add.existing(this);
 
     this.setCollideWorldBounds(true);
-    this.setSize(16, 16);
-    this.setOffset(0, 0);
+    this.setDepth(5);
+
+    const body = this.body as Phaser.Physics.Arcade.Body;
+    body.setSize(36, 48);
+    body.setOffset(14, 12);
 
     const keyboard = scene.input.keyboard;
     if (!keyboard) {
@@ -62,7 +80,13 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     }
 
     if (velocity.lengthSq() > 0) {
-      velocity.normalize().scale(this.speed);
+      velocity.normalize().scale(SPEED);
+      this.updateDirection(velocity.x, velocity.y);
+      this.anims.play(ANIM_KEYS[this.lastDirection], true);
+    } else {
+      this.anims.stop();
+      this.setTexture(ANIM_KEYS[this.lastDirection]);
+      this.setFrame(0);
     }
 
     this.setVelocity(velocity.x, velocity.y);
@@ -70,10 +94,20 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
 
   freezeMovement() {
     this.setVelocity(0, 0);
+    this.anims.stop();
+    this.setFrame(0);
     this.setActive(false);
   }
 
   releaseMovement() {
     this.setActive(true);
+  }
+
+  private updateDirection(x: number, y: number) {
+    if (Math.abs(x) > Math.abs(y)) {
+      this.lastDirection = x > 0 ? "right" : "left";
+    } else {
+      this.lastDirection = y > 0 ? "down" : "up";
+    }
   }
 }
